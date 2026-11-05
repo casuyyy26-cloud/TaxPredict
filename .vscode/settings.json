@@ -1,0 +1,6 @@
+{
+  "python.experiments.optOutFrom": [],
+  "python.analysis.extraPaths": [
+    "./src"
+  ]
+}
