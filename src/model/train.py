@@ -12,6 +12,7 @@ Upgraded training script for the TaxPredict model (Vercel + Local Compatible):
 
 import os
 import re
+from urllib.parse import quote_plus
 import joblib
 import numpy as np
 import pandas as pd
@@ -42,19 +43,38 @@ NUMERIC_FEATURES = ["year"]
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1")
 
 
+def _get_driver_scheme():
+    try:
+        import psycopg2  # noqa: F401
+        return "postgresql+psycopg2"
+    except ImportError:
+        return "postgresql+psycopg"
+
+
 def get_database_engine():
+    scheme = _get_driver_scheme()
     url = os.environ.get("DATABASE_URL")
     if url:
-        url = url.strip()
-        if url.startswith("postgres://"):
-            url = url.replace("postgres://", "postgresql+psycopg2://", 1)
-        elif url.startswith("postgresql://") and "+psycopg2" not in url:
-            url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
-        db_url = make_url(url)
+        url = url.strip().strip('"').strip("'")
+        if "://" in url:
+            _, rest = url.split("://", 1)
+        else:
+            rest = url
+
+        if "@" in rest:
+            userinfo, hostinfo = rest.rsplit("@", 1)
+            if ":" in userinfo:
+                user, raw_pw = userinfo.split(":", 1)
+                if "?" in raw_pw or "#" in raw_pw or "@" in raw_pw:
+                    raw_pw = quote_plus(raw_pw)
+                userinfo = f"{user}:{raw_pw}"
+            rest = f"{userinfo}@{hostinfo}"
+
+        db_url = make_url(f"{scheme}://{rest}")
     else:
         db_url = make_url(
             URL.create(
-                "postgresql+psycopg2",
+                scheme,
                 username=os.environ.get("DB_USER", "postgres"),
                 password=os.environ.get("DB_PASSWORD", ""),
                 host=os.environ.get("DB_HOST", "db.atfxhnibxmjtcdlfxqux.supabase.co"),

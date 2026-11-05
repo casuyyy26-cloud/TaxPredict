@@ -1,8 +1,11 @@
 {
+  "installCommand": "npm install",
+  "buildCommand": "CI=false npm run build && rm -rf node_modules .venv venv .vercel/python",
+  "outputDirectory": "build",
   "functions": {
     "api/index.py": {
       "maxDuration": 300,
-      "excludeFiles": "{node_modules/**,build/**,public/**,venv/**,.venv/**,.git/**}"
+      "excludeFiles": "build/**"
     }
   },
   "rewrites": [

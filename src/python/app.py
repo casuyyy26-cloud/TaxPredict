@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+from urllib.parse import quote_plus
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -28,25 +29,45 @@ CORS(app)
 
 
 # ------------------------------------------------------------------
-# DATABASE CONNECTION (VERCEL + LOCAL COMPATIBLE)
+# DATABASE CONNECTION (VERCEL + LOCAL COMPATIBLE, PSYCOPG2 & V3 SAFE)
 # ------------------------------------------------------------------
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1")
 
 
+def _get_driver_scheme():
+    try:
+        import psycopg2  # noqa: F401
+        return "postgresql+psycopg2"
+    except ImportError:
+        return "postgresql+psycopg"
+
+
 def build_database_url():
+    scheme = _get_driver_scheme()
     url = os.environ.get("DATABASE_URL")
     if url:
-        url = url.strip()
-        if url.startswith("postgres://"):
-            url = url.replace("postgres://", "postgresql+psycopg2://", 1)
-        elif url.startswith("postgresql://") and "+psycopg2" not in url:
-            url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
-        return url
+        url = url.strip().strip('"').strip("'")
+        if "://" in url:
+            _, rest = url.split("://", 1)
+        else:
+            rest = url
+
+        # Safely encode special characters (like '?') inside the password
+        if "@" in rest:
+            userinfo, hostinfo = rest.rsplit("@", 1)
+            if ":" in userinfo:
+                user, raw_pw = userinfo.split(":", 1)
+                if "?" in raw_pw or "#" in raw_pw or "@" in raw_pw:
+                    raw_pw = quote_plus(raw_pw)
+                userinfo = f"{user}:{raw_pw}"
+            rest = f"{userinfo}@{hostinfo}"
+
+        return f"{scheme}://{rest}"
 
     password = os.environ.get("DB_PASSWORD")
     if password:
         return URL.create(
-            "postgresql+psycopg2",
+            scheme,
             username=os.environ.get("DB_USER", "postgres"),
             password=password,
             host=os.environ.get("DB_HOST", "db.atfxhnibxmjtcdlfxqux.supabase.co"),
